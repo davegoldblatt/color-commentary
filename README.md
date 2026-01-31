@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Color Commentary
 
-## Getting Started
+Real-time AI sports broadcast that treats everyday moments like Game 7 of the Finals. Point a webcam at anyone and get live ESPN-style commentary, engagement meters, and play-by-play logging — powered by Gemini.
 
-First, run the development server:
+**Built at the Gemini 3 Super Hack (January 2026)**
+
+## How It Works
+
+1. Click **START BROADCAST** to activate your webcam
+2. Frames are captured and sent to Gemini 2.0 Flash every 3 seconds
+3. The AI analyzes what it sees and generates sports-style commentary
+4. Commentary types out over the video feed with a broadcast overlay
+5. Engagement/skepticism meters and play-by-play log update in real time
+
+## Architecture
+
+```
+Browser                     Next.js Server              Gemini API
+──────                     ──────────────              ──────────
+
+Webcam → Canvas (JPEG) ──POST /api/analyze──▶ Proxy to Gemini 2.0 Flash
+                                               (systemInstruction + image)
+UI ◀── JSON response ◀──────────────────────── Structured JSON output
+  • Commentary overlay                           (responseMimeType)
+  • Engagement meter
+  • Skepticism meter
+  • Momentum indicator
+  • Play-by-play log
+```
+
+- **Polling architecture** — simple, reliable, no WebSocket complexity
+- **Server-side proxy** — API key stays on the server, never exposed to the browser
+- **`responseMimeType: "application/json"`** — forces structured output from Gemini
+
+## Stack
+
+- **Next.js 15** (App Router) on Vercel
+- **Gemini 2.0 Flash** via REST API (`generateContent`)
+- **Tailwind CSS** for broadcast-style UI
+- **TypeScript** throughout
+
+## Running Locally
+
+```bash
+npm install
+```
+
+Create `.env.local`:
+```
+GEMINI_API_KEY=your_api_key_here
+```
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  page.tsx                  # Server component shell
+  api/
+    analyze/route.ts        # Gemini proxy endpoint
+    token/route.ts          # API key endpoint (unused, legacy)
+  components/
+    Broadcast.tsx           # Main client component (state machine)
+    CommentaryOverlay.tsx   # Typewriter text overlay on video
+    StatsPanel.tsx          # Engagement/skepticism/momentum meters
+    PlayByPlay.tsx          # Scrolling event log
+    LiveBadge.tsx           # Pulsing LIVE indicator + timer
+lib/
+  gemini-live.ts            # WebSocket client (unused, legacy)
+  sounds.ts                 # Audio cue manager
+```
 
-## Learn More
+## Deploy
 
-To learn more about Next.js, take a look at the following resources:
+Push to `main` — Vercel auto-deploys. Set `GEMINI_API_KEY` in Vercel Environment Variables.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Authors
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Dave Goldblatt & Sid — Gemini 3 Super Hack, January 2026
