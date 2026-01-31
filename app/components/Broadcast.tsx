@@ -1,0 +1,286 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { soundManager } from "@/lib/sounds";
+import { LiveBadge } from "./LiveBadge";
+import { CommentaryOverlay } from "./CommentaryOverlay";
+import { StatsPanel } from "./StatsPanel";
+import { PlayByPlay, type PlayEvent } from "./PlayByPlay";
+
+type AppState = "idle" | "connecting" | "countdown" | "live" | "error";
+
+interface CommentaryUpdate {
+  commentary: string;
+  engagement: number;
+  skepticism: number;
+  momentum: "rising" | "falling" | "steady";
+  event: { type: "positive" | "negative" | "neutral"; text: string } | null;
+  sound: "cheer" | "gasp" | "organ" | "buzzer" | null;
+}
+
+export function Broadcast() {
+  const [appState, setAppState] = useState<AppState>("idle");
+  const [commentary, setCommentary] = useState("");
+  const [engagement, setEngagement] = useState(50);
+  const [skepticism, setSkepticism] = useState(50);
+  const [momentum, setMomentum] = useState<"rising" | "falling" | "steady">("steady");
+  const [events, setEvents] = useState<PlayEvent[]>([]);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [countdownNum, setCountdownNum] = useState(3);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [debugLog, setDebugLog] = useState<string[]>(["Waiting to start..."]);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const startTimeRef = useRef<number>(0);
+  const runningRef = useRef(false);
+  const prevCommentaryRef = useRef("");
+
+  const addDebug = (msg: string) => {
+    setDebugLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 9)]);
+  };
+
+  const applyUpdate = (update: CommentaryUpdate) => {
+    addDebug(`UPDATE: "${update.commentary?.slice(0, 50)}"`);
+    setCommentary(update.commentary || "");
+    setEngagement(Math.max(0, Math.min(100, update.engagement ?? 50)));
+    setSkepticism(Math.max(0, Math.min(100, update.skepticism ?? 50)));
+    setMomentum(
+      ["rising", "falling", "steady"].includes(update.momentum) ? update.momentum : "steady"
+    );
+
+    if (update.event) {
+      const diff = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const mins = Math.floor(diff / 60).toString().padStart(2, "0");
+      const secs = (diff % 60).toString().padStart(2, "0");
+      setEvents((prev) => [
+        { time: `${mins}:${secs}`, text: update.event!.text, type: update.event!.type },
+        ...prev.slice(0, 5),
+      ]);
+    }
+
+    soundManager.play(update.sound);
+    prevCommentaryRef.current = update.commentary || "";
+  };
+
+  const analyzeFrame = async (canvas: HTMLCanvasElement) => {
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+    const base64Data = dataUrl.split(",")[1];
+
+    addDebug(`Sending frame: ${Math.round(base64Data.length / 1024)}KB`);
+    console.log("[Analyze] Sending frame, size:", Math.round(base64Data.length / 1024), "KB");
+
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: base64Data,
+        previousCommentary: prevCommentaryRef.current,
+      }),
+    });
+
+    addDebug(`Response: ${response.status}`);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      addDebug(`ERROR: ${errText.slice(0, 80)}`);
+      return null;
+    }
+
+    const text = await response.text();
+    addDebug(`Raw: ${text.slice(0, 80)}`);
+    try {
+      const data = JSON.parse(text);
+      return data as CommentaryUpdate;
+    } catch (e) {
+      addDebug(`JSON PARSE FAIL: ${e}`);
+      return null;
+    }
+  };
+
+  const startBroadcast = async () => {
+    addDebug("Starting broadcast...");
+    setAppState("connecting");
+    soundManager.init();
+    soundManager.unlock();
+
+    try {
+      // Get webcam
+      console.log("[Broadcast] Requesting webcam...");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      console.log("[Broadcast] Got webcam stream");
+
+      // Countdown
+      setAppState("countdown");
+      for (let i = 3; i >= 1; i--) {
+        setCountdownNum(i);
+        await new Promise((r) => setTimeout(r, 800));
+      }
+
+      // Go live
+      const now = Date.now();
+      setStartTime(now);
+      startTimeRef.current = now;
+      setAppState("live");
+
+      // Set up capture video (programmatic, not in DOM)
+      const captureVideo = document.createElement("video");
+      captureVideo.srcObject = stream;
+      captureVideo.muted = true;
+      captureVideo.playsInline = true;
+      await captureVideo.play();
+      console.log("[Broadcast] Capture video playing:", !captureVideo.paused, "size:", captureVideo.videoWidth, "x", captureVideo.videoHeight);
+
+      // Set up display video via ref (will be set by useEffect)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+
+      // Set up canvas
+      const canvas = document.createElement("canvas");
+      canvas.width = 768;
+      canvas.height = 576;
+      const ctx = canvas.getContext("2d")!;
+
+      // Start poll loop
+      runningRef.current = true;
+      addDebug("Starting poll loop...");
+
+      const poll = async () => {
+        let frameCount = 0;
+        while (runningRef.current) {
+          frameCount++;
+          addDebug(`Frame #${frameCount}`);
+          try {
+            ctx.drawImage(captureVideo, 0, 0, 768, 576);
+            const update = await analyzeFrame(canvas);
+            if (update) {
+              applyUpdate(update);
+            }
+          } catch (e) {
+            addDebug(`POLL ERROR: ${e}`);
+          }
+          // Wait 3 seconds before next frame
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+      };
+
+      // Start polling — don't await, let it run in background
+      poll();
+    } catch (err) {
+      console.error("[Broadcast] Error:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Connection failed");
+      setAppState("error");
+    }
+  };
+
+  // Re-attach stream when video element appears
+  useEffect(() => {
+    if (appState === "live" && videoRef.current) {
+      // The stream might already be set, but try to play anyway
+      videoRef.current.play().catch(() => {});
+    }
+  }, [appState]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      runningRef.current = false;
+    };
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex flex-col">
+      {/* IDLE */}
+      {appState === "idle" && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-6xl font-black text-white mb-2 tracking-tight">
+              COLOR <span className="text-[#00d4ff]">COMMENTARY</span>
+            </h1>
+            <p className="text-white/40 text-lg mb-12">Real-time AI sports broadcast</p>
+            <button
+              onClick={startBroadcast}
+              className="bg-red-600 hover:bg-red-500 text-white text-xl font-bold px-12 py-4 rounded-lg transition-colors cursor-pointer tracking-wider"
+            >
+              START BROADCAST
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CONNECTING */}
+      {appState === "connecting" && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-[#00d4ff] border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+            <p className="text-white/60 text-lg">Connecting to broadcast...</p>
+          </div>
+        </div>
+      )}
+
+      {/* COUNTDOWN */}
+      {appState === "countdown" && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-[120px] font-black text-[#00d4ff]">
+              {countdownNum}
+            </div>
+            <p className="text-white/40 text-lg tracking-widest">GOING LIVE</p>
+          </div>
+        </div>
+      )}
+
+      {/* ERROR */}
+      {appState === "error" && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-400 text-xl mb-4">{errorMsg}</p>
+            <button
+              onClick={() => { setAppState("idle"); setErrorMsg(""); }}
+              className="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-lg transition-colors cursor-pointer"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE */}
+      {appState === "live" && (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-3 bg-black/50 border-b border-white/10">
+            <LiveBadge startTime={startTime} />
+            <h1 className="text-sm font-bold tracking-[0.3em] text-white/50 uppercase">
+              Color Commentary — Gemini Super Hack
+            </h1>
+          </div>
+
+          {/* Video Feed */}
+          <div className="flex-1 flex flex-col px-6 py-4 gap-4 max-w-6xl mx-auto w-full">
+            <div className="relative rounded-lg overflow-hidden bg-black aspect-video scanlines">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover absolute inset-0"
+                playsInline
+                muted
+                autoPlay
+              />
+              <CommentaryOverlay text={commentary} />
+            </div>
+
+            {/* Stats */}
+            <StatsPanel engagement={engagement} skepticism={skepticism} momentum={momentum} />
+
+            {/* Play-by-Play */}
+            <PlayByPlay events={events} />
+
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
