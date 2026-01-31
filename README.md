@@ -81,4 +81,4 @@ Push to `main` — Vercel auto-deploys. Set `GEMINI_API_KEY` in Vercel Environme
 
 ## Authors
 
-Dave Goldblatt & Sid — Gemini 3 Super Hack, January 2026
+[Dave Goldblatt](https://github.com/davegoldblatt) & [Siddharth Kandan](https://github.com/siddharthkandan) — Gemini 3 Super Hack, January 2026
