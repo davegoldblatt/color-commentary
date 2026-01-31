@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       ? `Your previous commentary was: "${previousCommentary}" — say something DIFFERENT now.\n\n`
       : "") + "Describe what you see in this image.";
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
     const body = {
       systemInstruction: {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       ],
       generationConfig: {
         temperature: 0.9,
-        maxOutputTokens: 300,
+        maxOutputTokens: 2000,
         responseMimeType: "application/json",
       },
     };
