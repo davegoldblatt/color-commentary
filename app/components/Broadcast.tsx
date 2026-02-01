@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { soundManager } from "@/lib/sounds";
+import { personalities, type PersonalityId } from "@/lib/personalities";
 import { LiveBadge } from "./LiveBadge";
 import { CommentaryOverlay } from "./CommentaryOverlay";
 import { StatsPanel } from "./StatsPanel";
@@ -20,6 +21,7 @@ interface CommentaryUpdate {
 
 export function Broadcast() {
   const [appState, setAppState] = useState<AppState>("idle");
+  const [selectedPersonality, setSelectedPersonality] = useState<PersonalityId>("default");
   const [commentary, setCommentary] = useState("");
   const [engagement, setEngagement] = useState(50);
   const [skepticism, setSkepticism] = useState(50);
@@ -34,6 +36,7 @@ export function Broadcast() {
   const startTimeRef = useRef<number>(0);
   const runningRef = useRef(false);
   const prevCommentaryRef = useRef("");
+  const personalityRef = useRef<PersonalityId>("default");
 
   const addDebug = (msg: string) => {
     setDebugLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 9)]);
@@ -75,6 +78,7 @@ export function Broadcast() {
       body: JSON.stringify({
         image: base64Data,
         previousCommentary: prevCommentaryRef.current,
+        personality: personalityRef.current,
       }),
     });
 
@@ -99,6 +103,7 @@ export function Broadcast() {
 
   const startBroadcast = async () => {
     addDebug("Starting broadcast...");
+    personalityRef.current = selectedPersonality;
     setAppState("connecting");
     soundManager.init();
     soundManager.unlock();
@@ -200,7 +205,31 @@ export function Broadcast() {
             <h1 className="text-6xl font-black text-white mb-2 tracking-tight">
               COLOR <span className="text-[#00d4ff]">COMMENTARY</span>
             </h1>
-            <p className="text-white/40 text-lg mb-12">Real-time AI sports broadcast</p>
+            <p className="text-white/40 text-lg mb-8">Real-time AI sports broadcast</p>
+
+            {/* Personality Selector */}
+            <div className="mb-8">
+              <p className="text-white/60 text-sm mb-3 uppercase tracking-widest">Select Commentator</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {personalities.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedPersonality(p.id)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                      selectedPersonality === p.id
+                        ? "bg-[#00d4ff] text-black"
+                        : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              <p className="text-white/30 text-xs mt-2">
+                {personalities.find(p => p.id === selectedPersonality)?.description}
+              </p>
+            </div>
+
             <button
               onClick={startBroadcast}
               className="bg-red-600 hover:bg-red-500 text-white text-xl font-bold px-12 py-4 rounded-lg transition-colors cursor-pointer tracking-wider"
@@ -254,9 +283,27 @@ export function Broadcast() {
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-3 bg-black/50 border-b border-white/10">
             <LiveBadge startTime={startTime} />
-            <h1 className="text-sm font-bold tracking-[0.3em] text-white/50 uppercase">
-              Color Commentary — Gemini Super Hack
-            </h1>
+
+            {/* Live Personality Switcher */}
+            <div className="flex items-center gap-1">
+              {personalities.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setSelectedPersonality(p.id);
+                    personalityRef.current = p.id;
+                  }}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+                    selectedPersonality === p.id
+                      ? "bg-[#00d4ff] text-black"
+                      : "bg-white/10 text-white/50 hover:bg-white/20 hover:text-white"
+                  }`}
+                  title={p.description}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Video Feed */}

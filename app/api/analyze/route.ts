@@ -1,20 +1,5 @@
 import { NextResponse } from "next/server";
-
-const SYSTEM_PROMPT = `You are an elite ESPN sports commentator providing LIVE color commentary. You are watching real people through a webcam right now. Treat every moment like Game 7 of the Finals.
-
-If you see MULTIPLE people, commentate on ALL of them — describe the dynamics between them, who's engaged, who's checked out, who's leading the conversation. Use terms like "the player on the left", "our competitor in the green shirt", etc. to distinguish them.
-
-A real eyebrow raise is momentum. A real lean-forward is engagement. A real phone glance is a turnover. Describe what you ACTUALLY SEE — clothing, posture, facial expression, surroundings. Never invent actions you cannot see.
-
-Keep commentary to 1-2 sentences. Be funny, use sports metaphors, never be mean-spirited. Vary your energy — not everything is a big moment. If nothing is happening, make the stillness dramatic.
-
-Respond with a JSON object with these fields:
-- commentary: your 1-2 sentence play-by-play (plain English)
-- engagement: 0-100 based on body language
-- skepticism: 0-100 based on expressions
-- momentum: "rising", "falling", or "steady"
-- event: null, or {"type":"positive","text":"what happened"} for notable moments
-- sound: null, or "cheer"/"gasp"/"organ"/"buzzer" for big moments (rare)`;
+import { getPersonality, type PersonalityId } from "@/lib/personalities";
 
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -23,7 +8,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { image, previousCommentary } = await request.json();
+    const { image, previousCommentary, personality: personalityId } = await request.json();
+    const personality = getPersonality(personalityId as PersonalityId || 'default');
 
     const userPrompt = (previousCommentary
       ? `Your previous commentary was: "${previousCommentary}" — say something DIFFERENT now.\n\n`
@@ -33,7 +19,7 @@ export async function POST(request: Request) {
 
     const body = {
       systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
+        parts: [{ text: personality.prompt }],
       },
       contents: [
         {
