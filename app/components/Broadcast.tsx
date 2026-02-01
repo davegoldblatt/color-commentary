@@ -41,6 +41,8 @@ export function Broadcast() {
   const prevCommentaryRef = useRef("");
   const personalityRef = useRef<PersonalityId>("default");
   const peopleRef = useRef<string[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const pollNowRef = useRef<(() => void) | null>(null);
 
   const addDebug = (msg: string) => {
     setDebugLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 9)]);
@@ -103,6 +105,11 @@ export function Broadcast() {
     addDebug(`Sending frame: ${Math.round(base64Data.length / 1024)}KB`);
     console.log("[Analyze] Sending frame, size:", Math.round(base64Data.length / 1024), "KB");
 
+    // Abort any previous in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,6 +119,7 @@ export function Broadcast() {
         personality: personalityRef.current,
         people: peopleRef.current.filter(p => p.trim() !== ""),
       }),
+      signal: controller.signal,
     });
 
     addDebug(`Response: ${response.status}`);
@@ -197,11 +205,22 @@ export function Broadcast() {
             if (update) {
               applyUpdate(update);
             }
-          } catch (e) {
+          } catch (e: unknown) {
+            if (e instanceof Error && e.name === "AbortError") {
+              addDebug("Request aborted — switching personality");
+              continue; // Skip the wait, immediately send new frame
+            }
             addDebug(`POLL ERROR: ${e}`);
           }
-          // Wait 3 seconds before next frame
-          await new Promise((r) => setTimeout(r, 3000));
+          // Wait 3 seconds, but allow interruption
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, 3000);
+            pollNowRef.current = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+          });
+          pollNowRef.current = null;
         }
       };
 
@@ -325,6 +344,9 @@ export function Broadcast() {
                   onClick={() => {
                     setSelectedPersonality(p.id);
                     personalityRef.current = p.id;
+                    // Abort in-flight request and skip wait
+                    abortRef.current?.abort();
+                    pollNowRef.current?.();
                   }}
                   className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
                     selectedPersonality === p.id
