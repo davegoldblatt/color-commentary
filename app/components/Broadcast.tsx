@@ -22,6 +22,7 @@ interface CommentaryUpdate {
 export function Broadcast() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [selectedPersonality, setSelectedPersonality] = useState<PersonalityId>("default");
+  const [people, setPeople] = useState<string[]>(["Person 1", "Person 2", "Person 3"]);
   const [commentary, setCommentary] = useState("");
   const [engagement, setEngagement] = useState(50);
   const [skepticism, setSkepticism] = useState(50);
@@ -31,12 +32,14 @@ export function Broadcast() {
   const [countdownNum, setCountdownNum] = useState(3);
   const [errorMsg, setErrorMsg] = useState("");
   const [debugLog, setDebugLog] = useState<string[]>(["Waiting to start..."]);
+  const [showPeopleEditor, setShowPeopleEditor] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const startTimeRef = useRef<number>(0);
   const runningRef = useRef(false);
   const prevCommentaryRef = useRef("");
   const personalityRef = useRef<PersonalityId>("default");
+  const peopleRef = useRef<string[]>(["Person 1", "Person 2", "Person 3"]);
 
   const addDebug = (msg: string) => {
     setDebugLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 9)]);
@@ -79,6 +82,7 @@ export function Broadcast() {
         image: base64Data,
         previousCommentary: prevCommentaryRef.current,
         personality: personalityRef.current,
+        people: peopleRef.current.filter(p => p.trim() !== ""),
       }),
     });
 
@@ -104,6 +108,7 @@ export function Broadcast() {
   const startBroadcast = async () => {
     addDebug("Starting broadcast...");
     personalityRef.current = selectedPersonality;
+    peopleRef.current = people;
     setAppState("connecting");
     soundManager.init();
     soundManager.unlock();
@@ -230,6 +235,49 @@ export function Broadcast() {
               </p>
             </div>
 
+            {/* People Tags */}
+            <div className="mb-8">
+              <p className="text-white/60 text-sm mb-3 uppercase tracking-widest">Name the Players</p>
+              <div className="flex flex-col gap-2 max-w-xs mx-auto">
+                {people.map((name, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-white/40 text-sm w-20 text-right">Person {idx + 1}</span>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => {
+                        const newPeople = [...people];
+                        newPeople[idx] = e.target.value;
+                        setPeople(newPeople);
+                      }}
+                      placeholder={`Person ${idx + 1}`}
+                      className="flex-1 bg-white/10 text-white px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#00d4ff] focus:outline-none"
+                    />
+                    {people.length > 1 && (
+                      <button
+                        onClick={() => setPeople(people.filter((_, i) => i !== idx))}
+                        className="text-white/30 hover:text-red-400 px-2 cursor-pointer"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {people.length < 6 && (
+                  <button
+                    onClick={() => setPeople([...people, `Person ${people.length + 1}`])}
+                    className="text-[#00d4ff]/70 hover:text-[#00d4ff] text-sm mt-1 cursor-pointer"
+                  >
+                    + Add Person
+                  </button>
+                )}
+              </div>
+              <p className="text-white/30 text-xs mt-2">
+                The commentator will use these names (left to right in frame)
+              </p>
+            </div>
+
             <button
               onClick={startBroadcast}
               className="bg-red-600 hover:bg-red-500 text-white text-xl font-bold px-12 py-4 rounded-lg transition-colors cursor-pointer tracking-wider"
@@ -285,26 +333,88 @@ export function Broadcast() {
             <LiveBadge startTime={startTime} />
 
             {/* Live Personality Switcher */}
-            <div className="flex items-center gap-1">
-              {personalities.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    setSelectedPersonality(p.id);
-                    personalityRef.current = p.id;
-                  }}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
-                    selectedPersonality === p.id
-                      ? "bg-[#00d4ff] text-black"
-                      : "bg-white/10 text-white/50 hover:bg-white/20 hover:text-white"
-                  }`}
-                  title={p.description}
-                >
-                  {p.name}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                {personalities.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedPersonality(p.id);
+                      personalityRef.current = p.id;
+                    }}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+                      selectedPersonality === p.id
+                        ? "bg-[#00d4ff] text-black"
+                        : "bg-white/10 text-white/50 hover:bg-white/20 hover:text-white"
+                    }`}
+                    title={p.description}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowPeopleEditor(!showPeopleEditor)}
+                className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+                  showPeopleEditor
+                    ? "bg-[#ff0080] text-white"
+                    : "bg-white/10 text-white/50 hover:bg-white/20 hover:text-white"
+                }`}
+                title="Edit player names"
+              >
+                👥 Names
+              </button>
             </div>
           </div>
+
+          {/* People Editor Panel (collapsible) */}
+          {showPeopleEditor && (
+            <div className="px-6 py-3 bg-black/30 border-b border-white/10">
+              <div className="flex items-center gap-3 flex-wrap max-w-6xl mx-auto">
+                <span className="text-white/50 text-xs uppercase tracking-wider">Players:</span>
+                {people.map((name, idx) => (
+                  <div key={idx} className="flex items-center gap-1">
+                    <span className="text-white/30 text-xs">#{idx + 1}</span>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => {
+                        const newPeople = [...people];
+                        newPeople[idx] = e.target.value;
+                        setPeople(newPeople);
+                        peopleRef.current = newPeople;
+                      }}
+                      className="bg-white/10 text-white px-2 py-1 rounded text-xs w-24 border border-white/10 focus:border-[#00d4ff] focus:outline-none"
+                    />
+                    {people.length > 1 && (
+                      <button
+                        onClick={() => {
+                          const newPeople = people.filter((_, i) => i !== idx);
+                          setPeople(newPeople);
+                          peopleRef.current = newPeople;
+                        }}
+                        className="text-white/30 hover:text-red-400 text-xs cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {people.length < 6 && (
+                  <button
+                    onClick={() => {
+                      const newPeople = [...people, `Person ${people.length + 1}`];
+                      setPeople(newPeople);
+                      peopleRef.current = newPeople;
+                    }}
+                    className="text-[#00d4ff]/70 hover:text-[#00d4ff] text-xs cursor-pointer"
+                  >
+                    + Add
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Video Feed */}
           <div className="flex-1 flex flex-col px-6 py-4 gap-4 max-w-6xl mx-auto w-full">

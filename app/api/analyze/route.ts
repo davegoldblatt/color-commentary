@@ -8,12 +8,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { image, previousCommentary, personality: personalityId } = await request.json();
+    const { image, previousCommentary, personality: personalityId, people } = await request.json();
     const personality = getPersonality(personalityId as PersonalityId || 'default');
+
+    // Build people context if names are provided
+    let peopleContext = "";
+    if (people && Array.isArray(people) && people.length > 0) {
+      const namedPeople = people.filter((p: string) => p && p.trim());
+      if (namedPeople.length > 0) {
+        peopleContext = `\n\nPLAYER NAMES (left to right in frame): ${namedPeople.map((name: string, i: number) => `#${i + 1} "${name}"`).join(", ")}. Use these names when referring to people!`;
+      }
+    }
 
     const userPrompt = (previousCommentary
       ? `Your previous commentary was: "${previousCommentary}" — say something DIFFERENT now.\n\n`
-      : "") + "Describe what you see in this image.";
+      : "") + "Describe what you see in this image." + peopleContext;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
