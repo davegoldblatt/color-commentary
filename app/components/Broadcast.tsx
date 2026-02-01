@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { soundManager } from "@/lib/sounds";
+import { ttsManager } from "@/lib/tts";
 import { personalities, type PersonalityId } from "@/lib/personalities";
 import { LiveBadge } from "./LiveBadge";
 import { CommentaryOverlay } from "./CommentaryOverlay";
@@ -34,6 +35,8 @@ export function Broadcast() {
   const [countdownNum, setCountdownNum] = useState(3);
   const [errorMsg, setErrorMsg] = useState("");
   const [debugLog, setDebugLog] = useState<string[]>(["Waiting to start..."]);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [ttsState, setTtsState] = useState<"idle" | "loading" | "playing">("idle");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const startTimeRef = useRef<number>(0);
@@ -95,6 +98,7 @@ export function Broadcast() {
     }
 
     soundManager.play(update.sound);
+    ttsManager.speak(update.commentary || "", personalityRef.current);
     prevCommentaryRef.current = update.commentary || "";
   };
 
@@ -241,10 +245,22 @@ export function Broadcast() {
     }
   }, [appState]);
 
+  // Sync voice toggle to TTS manager
+  useEffect(() => {
+    ttsManager.setEnabled(voiceEnabled);
+  }, [voiceEnabled]);
+
+  // Wire TTS state for UI indicator
+  useEffect(() => {
+    ttsManager.setOnStateChange(setTtsState);
+    return () => ttsManager.setOnStateChange(null);
+  }, []);
+
   // Cleanup
   useEffect(() => {
     return () => {
       runningRef.current = false;
+      ttsManager.stop();
     };
   }, []);
 
@@ -279,6 +295,23 @@ export function Broadcast() {
               </div>
               <p className="text-white/30 text-xs mt-2">
                 {personalities.find(p => p.id === selectedPersonality)?.description}
+              </p>
+            </div>
+
+            {/* Voice Toggle */}
+            <div className="mb-8">
+              <button
+                onClick={() => setVoiceEnabled(prev => !prev)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                  voiceEnabled
+                    ? "bg-[#00d4ff] text-black"
+                    : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+                }`}
+              >
+                {voiceEnabled ? "\u{1F50A} Voice On" : "\u{1F507} Voice Off"}
+              </button>
+              <p className="text-white/30 text-xs mt-2">
+                {voiceEnabled ? "AI will speak commentary aloud" : "Enable spoken commentary"}
               </p>
             </div>
 
@@ -336,8 +369,9 @@ export function Broadcast() {
           <div className="flex items-center justify-between px-6 py-3 bg-black/50 border-b border-white/10">
             <LiveBadge startTime={startTime} />
 
-            {/* Live Personality Switcher */}
-            <div className="flex items-center gap-1">
+            {/* Live Personality Switcher + Voice Toggle */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
               {personalities.map((p) => (
                 <button
                   key={p.id}
@@ -346,6 +380,7 @@ export function Broadcast() {
                     personalityRef.current = p.id;
                     // Abort in-flight request and skip wait
                     abortRef.current?.abort();
+                    ttsManager.stop();
                     pollNowRef.current?.();
                   }}
                   className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
@@ -358,6 +393,24 @@ export function Broadcast() {
                   {p.name}
                 </button>
               ))}
+              </div>
+              <button
+                onClick={() => setVoiceEnabled(prev => !prev)}
+                className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                  voiceEnabled
+                    ? "bg-[#00d4ff] text-black"
+                    : "bg-white/10 text-white/50 hover:bg-white/20 hover:text-white"
+                }`}
+                title={voiceEnabled ? "Voice on" : "Voice off"}
+              >
+                {voiceEnabled ? "\u{1F50A}" : "\u{1F507}"}
+                {ttsState === "loading" && (
+                  <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse" />
+                )}
+                {ttsState === "playing" && (
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                )}
+              </button>
             </div>
           </div>
 
