@@ -18,6 +18,7 @@ interface CommentaryUpdate {
   event: { type: "positive" | "negative" | "neutral"; text: string } | null;
   sound: "cheer" | "gasp" | "organ" | "buzzer" | null;
   detectedNames: string[] | null;
+  peopleCount: number | null;
 }
 
 export function Broadcast() {
@@ -66,9 +67,13 @@ export function Broadcast() {
 
     // Auto-populate names from detected name tags
     if (update.detectedNames && update.detectedNames.length > 0) {
-      const validNames = update.detectedNames.filter(n => n && typeof n === "string" && n.trim());
+      let validNames = update.detectedNames.filter(n => n && typeof n === "string" && n.trim());
+      // Limit names to actual people count if provided
+      if (update.peopleCount && update.peopleCount > 0 && validNames.length > update.peopleCount) {
+        validNames = validNames.slice(0, update.peopleCount);
+      }
       if (validNames.length > 0) {
-        addDebug(`Detected names: ${validNames.join(", ")}`);
+        addDebug(`Detected ${update.peopleCount || "?"} people, names: ${validNames.join(", ")}`);
         // Only update if we detect new names that differ from current
         const currentNames = peopleRef.current.join(",");
         const newNames = validNames.join(",");
@@ -76,6 +81,14 @@ export function Broadcast() {
           setPeople(validNames);
           peopleRef.current = validNames;
         }
+      }
+    } else if (update.peopleCount !== null && update.peopleCount >= 0) {
+      // If we have a people count but no names, trim the list if needed
+      if (peopleRef.current.length > update.peopleCount) {
+        const trimmedPeople = peopleRef.current.slice(0, update.peopleCount);
+        setPeople(trimmedPeople);
+        peopleRef.current = trimmedPeople;
+        addDebug(`Trimmed to ${update.peopleCount} visible people`);
       }
     }
 

@@ -94,6 +94,7 @@ export async function POST(request: Request) {
         event: parsed.event && parsed.event.type ? parsed.event : null,
         sound: parsed.sound && parsed.sound !== "none" ? parsed.sound : null,
         detectedNames: Array.isArray(parsed.detectedNames) ? parsed.detectedNames : null,
+        peopleCount: typeof parsed.peopleCount === "number" ? parsed.peopleCount : null,
       };
 
       return NextResponse.json(result);

@@ -8,22 +8,25 @@ export interface Personality {
 }
 
 const BASE_INSTRUCTIONS = `
+CRITICAL: First, COUNT exactly how many people are VISIBLE in the frame. Only commentate on people you can actually see. If you see 1 person, only talk about 1 person. If you see 2 people, only talk about 2 people. NEVER mention or imply people who are not visible in the current frame.
+
 If you see MULTIPLE people, commentate on ALL of them — describe the dynamics between them, who's engaged, who's checked out, who's leading the conversation. Use terms like "the player on the left", "our competitor in the green shirt", etc. to distinguish them.
 
-IMPORTANT: Look for NAME TAGS, badges, or any visible text showing people's names. If you can read a name tag on someone, include it in detectedNames (left to right order).
+IMPORTANT: Look for NAME TAGS, badges, or any visible text showing people's names. If you can read a name tag on someone, include it in detectedNames (left to right order). Only include names for people currently visible.
 
-A real eyebrow raise is momentum. A real lean-forward is engagement. A real phone glance is a turnover. Describe what you ACTUALLY SEE — clothing, posture, facial expression, surroundings. Never invent actions you cannot see.
+A real eyebrow raise is momentum. A real lean-forward is engagement. A real phone glance is a turnover. Describe what you ACTUALLY SEE — clothing, posture, facial expression, surroundings. Never invent actions or people you cannot see.
 
 Keep commentary to 1-2 sentences. Vary your energy — not everything is a big moment. If nothing is happening, make the stillness dramatic.
 
 Respond with a JSON object with these fields:
-- commentary: your 1-2 sentence play-by-play (plain English)
+- peopleCount: number of people currently visible in the frame (REQUIRED - count carefully!)
+- commentary: your 1-2 sentence play-by-play (plain English) - only mention visible people
 - engagement: 0-100 based on body language
 - skepticism: 0-100 based on expressions
 - momentum: "rising", "falling", or "steady"
 - event: null, or {"type":"positive","text":"what happened"} for notable moments
 - sound: null, or "cheer"/"gasp"/"organ"/"buzzer" for big moments (rare)
-- detectedNames: array of names read from visible name tags/badges (left to right), or null if no name tags visible`;
+- detectedNames: array of names read from visible name tags/badges (left to right), or null if no name tags visible. Array length should match peopleCount if names are detected.`;
 
 export const personalities: Personality[] = [
   {
