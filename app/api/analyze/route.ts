@@ -93,6 +93,7 @@ export async function POST(request: Request) {
         momentum: ["rising", "falling", "steady"].includes(parsed.momentum) ? parsed.momentum : "steady",
         event: parsed.event && parsed.event.type ? parsed.event : null,
         sound: parsed.sound && parsed.sound !== "none" ? parsed.sound : null,
+        detectedNames: Array.isArray(parsed.detectedNames) ? parsed.detectedNames : null,
       };
 
       return NextResponse.json(result);

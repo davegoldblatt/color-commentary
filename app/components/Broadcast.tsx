@@ -17,6 +17,7 @@ interface CommentaryUpdate {
   momentum: "rising" | "falling" | "steady";
   event: { type: "positive" | "negative" | "neutral"; text: string } | null;
   sound: "cheer" | "gasp" | "organ" | "buzzer" | null;
+  detectedNames: string[] | null;
 }
 
 export function Broadcast() {
@@ -62,6 +63,21 @@ export function Broadcast() {
         { time: `${mins}:${secs}`, text: update.event!.text, type: update.event!.type },
         ...prev.slice(0, 5),
       ]);
+    }
+
+    // Auto-populate names from detected name tags
+    if (update.detectedNames && update.detectedNames.length > 0) {
+      const validNames = update.detectedNames.filter(n => n && typeof n === "string" && n.trim());
+      if (validNames.length > 0) {
+        addDebug(`Detected names: ${validNames.join(", ")}`);
+        // Only update if we detect new names that differ from current
+        const currentNames = peopleRef.current.join(",");
+        const newNames = validNames.join(",");
+        if (currentNames !== newNames) {
+          setPeople(validNames);
+          peopleRef.current = validNames;
+        }
+      }
     }
 
     soundManager.play(update.sound);
