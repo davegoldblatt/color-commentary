@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     const userPrompt = (previousCommentary
       ? `Your previous commentary was: "${previousCommentary}" — say something DIFFERENT now.\n\n`
-      : "") + "Describe what you see in this image." + peopleContext;
+      : "") + "Describe what you see in this image. Include your commentary, engagement score (0-100), skepticism score (0-100), momentum (rising/falling/steady), any notable event, sound cue, people count, and any detected name tags." + peopleContext;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
